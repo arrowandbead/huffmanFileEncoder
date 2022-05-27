@@ -10,25 +10,13 @@ import (
 
 const numThreads = 4
 
-func HuffmanEncode(bytes []byte) (compressed []byte) {
+func HuffmanEncode(bytes []byte) (numBytes int, bitStringsToBytes map[string]byte, outBytes []byte) {
 	var byteToCountMap = countBytes(bytes)
 
-	// type Node struct {
-	// 	lChild *Node
-	// 	rChild *Node
-	// 	parent *Node
-	// 	idNum  int
-	// 	isLead bool
-	// 	val    int
-	// 	weight int
-	// }
-	fmt.Println(len(bytes))
-	//make nodes
 	backUpLeafSlice := make([]**Node, 0)
 	nodeSlice := make([]**Node, 0)
 
 	for k, v := range *byteToCountMap {
-		// fmt.Println(int(k))
 		newNode := Node{isLeaf: true, val: k, weight: v}
 		newNodePointer := &newNode
 		newNodePointerPointer := &newNodePointer
@@ -36,9 +24,7 @@ func HuffmanEncode(bytes []byte) (compressed []byte) {
 		backUpLeafSlice = append(backUpLeafSlice, newNodePointerPointer)
 	}
 
-	// backUpLeafSlice = backUpLeafSlice[:len(backUpLeafSlice)-1]
-	// // fmt.Println(backUpLeafSlice)
-	// nodeSlice = nodeSlice[:len(nodeSlice)-1]
+	MakeHeap[Node](&nodeSlice, compareNodesAGTB)
 
 	var root **Node
 
@@ -47,131 +33,144 @@ func HuffmanEncode(bytes []byte) (compressed []byte) {
 			root = nodeSlice[0]
 			break
 		}
-		// fmt.Println("------")
-		// fmt.Println(nodesToWeightVector(&nodeSlice))
-		// fmt.Println(len(nodeSlice))
 
 		var low **Node = GetTopElement[Node](&nodeSlice, compareNodesAGTB)
 		var high **Node = GetTopElement[Node](&nodeSlice, compareNodesAGTB)
 
-		// fmt.Println(low.weight)
-		// fmt.Println(high.weight)
 		newNode := Node{isLeaf: false, weight: (*low).weight + (*high).weight, lChild: *low, rChild: *high}
-		// fmt.Println(newNode.weight)
 		(*low).parent = &newNode
 		(*high).parent = &newNode
-		// fmt.Println("-----------")
-		// fmt.Println(nodeSlice)
+
 		InsertIntoHeap[Node](&newNode, &nodeSlice, compareNodesALTB)
 
-		// fmt.Println(nodesToWeightVector(&nodeSlice))
-		// fmt.Println("------")
-
 	}
-	compressText(*root, backUpLeafSlice, bytes)
-
-	return make([]byte, 2)
+	return compressText(*root, backUpLeafSlice, bytes)
 }
 
-func compressText(treeRoot *Node, leaves []**Node, bytes []byte) {
+func compressText(treeRoot *Node, leaves []**Node, byteArray []byte) (numBytes int, bitStringsToBytes map[string]byte, outBytes []byte) {
 	bytesToCountMap := make(map[byte]int)
 	bytesToBitString := make(map[byte]string)
-	for b := range bytes {
-		fmt.Println(int(b))
-	}
-	// fmt.Println(leaves)
-	// fmt.Println(leaves)
-	// for _, leaf := range leaves {
-	// 	fmt.Println(*leaf)
-	// }
-	// os.Exit(2)
-	fmt.Println("-----------------")
+
 	for _, leaf := range leaves {
 		var sb strings.Builder
-		var parent = (*leaf).parent
-		fmt.Println(leaf)
+		var parent = &((*leaf).parent)
+		curr := leaf
+
 		for {
 
-			if parent.lChild == *leaf {
+			if (*parent).lChild == (*curr) {
 				sb.WriteString("0")
 			} else {
+
 				sb.WriteString("1")
 			}
-			if parent == treeRoot {
+			if (*parent) == treeRoot {
 				break
 			}
-			parent = parent.parent
+			curr = parent
+			parent = &((*parent).parent)
 		}
 		stringRep := sb.String()
-
-		bytesToBitString[(*leaf).val] = stringRep
+		bytesToBitString[(*leaf).val] = reverse(stringRep)
 		bytesToCountMap[(*leaf).val] = (*leaf).weight
-
 	}
 	var compressedBuilder strings.Builder
-	// var numBytes int = len(bytes)
-	for _, b := range bytes {
+	numBytes = len(byteArray)
+	for _, b := range byteArray {
+
 		compressedBuilder.WriteString(bytesToBitString[b])
 	}
-
 	compressedBits := compressedBuilder.String()
-	var startByte = 0
-	var outBytes = make([]byte, 0)
-	for {
-		endByte := startByte + 7
 
-		if endByte > len(compressedBits) {
-			bits := compressedBits[startByte:]
-			for i := len(bits); i < 9; i++ {
+	var startBit = 0
+	for {
+		endBit := startBit + 7
+		bits := ""
+		if endBit > len(compressedBits) {
+			bits = compressedBits[startBit:]
+			for i := len(bits); i < 8; i++ {
 				bits += "0"
 			}
-			intVersion, _ := strconv.ParseInt(bits, 2, 8)
+			intVersion, _ := strconv.ParseUint(bits, 2, 8)
+
 			outBytes = append(outBytes, byte(intVersion))
 			break
 		}
-		bits := compressedBits[startByte : endByte+1]
-
-		intVersion, _ := strconv.ParseInt(bits, 2, 8)
+		bits = compressedBits[startBit : endBit+1]
+		intVersion, _ := strconv.ParseUint(bits, 2, 8)
 
 		outBytes = append(outBytes, byte(intVersion))
-		startByte += 8
+		startBit += 8
 
 	}
+	bitStringsToBytes = reverseMap(bytesToBitString)
 
-	bitString := ""
-	count := 0
-	for _, b := range outBytes {
-		// fmt.Println(int64(b))
-		if uint64(b) == 127 {
-			count += 1
+	var bitRep = make([]int, 8*len(outBytes))
+	for i, b := range outBytes {
+
+		for j := 0; j < 8; j++ {
+			bitRep[i*8+j] = int(b >> uint(7-j) & 0x01)
 		}
-		thing := strconv.FormatUint(uint64(b), 2)
 
-		// fmt.Println(int(b))
-		bitString += thing
 	}
 
-	// nextBit = 0
-	// for i := 0; i < numBytes; i++ {
-	// 	currNode := treeRoot
-	// 	numBitsUsed += 1
-	// 	for {
-	// 		if currNode.isLeaf {
+	var bsSb strings.Builder
+	for i := 0; i < len(bitRep); i++ {
+		bsSb.WriteString(strconv.Itoa(bitRep[i]))
+	}
+	bitString := bsSb.String()
 
-	// 		}
-	// 	}
-	// }
+	decompressedBytes := make([]byte, 0)
+	numBytesMade := 0
+
+	currBits := ""
+	for i := 0; i < len(bitString); i++ {
+		if numBytes == numBytesMade {
+			break
+		}
+		currBits += string(bitString[i])
+		if val, ok := bitStringsToBytes[currBits]; ok {
+			numBytesMade += 1
+			currBits = ""
+			decompressedBytes = append(decompressedBytes, val)
+		}
+	}
+	return numBytes, bitStringsToBytes, outBytes
 }
 
-// func bytesAsBinary(bytes []byte)(bitString string){
-// 	for i := 0; i < len(bytes); i++ {
-//         for j := 0; j < 8; j++ {
-//             zeroOrOne := bytes[i] >> (7 - j) & 1
-//             fmt.Printf("%c", '0'+zeroOrOne)
-//         }
-//         fmt.Print(" ")
-//     }
-// }
+func DecompressText(numBytes int, bitStringsToBytes map[string]byte, outBytes []byte) (decompressedBytes []byte) {
+	var bitRep = make([]int, 8*len(outBytes))
+	for i, b := range outBytes {
+
+		for j := 0; j < 8; j++ {
+			bitRep[i*8+j] = int(b >> uint(7-j) & 0x01)
+		}
+
+	}
+
+	var bsSb strings.Builder
+	for i := 0; i < len(bitRep); i++ {
+		bsSb.WriteString(strconv.Itoa(bitRep[i]))
+	}
+	bitString := bsSb.String()
+
+	numBytesMade := 0
+
+	currBits := ""
+	for i := 0; i < len(bitString); i++ {
+		if numBytes == numBytesMade {
+			break
+		}
+		currBits += string(bitString[i])
+		if val, ok := bitStringsToBytes[currBits]; ok {
+			numBytesMade += 1
+			currBits = ""
+			decompressedBytes = append(decompressedBytes, val)
+		}
+	}
+	return decompressedBytes
+}
+
 func nodesToWeightVector(nodes *[]**Node) (weights []int) {
 	for _, node := range *nodes {
 		weights = append(weights, (*node).weight)
@@ -192,6 +191,20 @@ func countReducer(byteChunk []byte) map[byte]int {
 	}
 
 	return byteCounts
+}
+func reverse(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
+func reverseMap(m map[byte]string) map[string]byte {
+	n := make(map[string]byte, len(m))
+	for k, v := range m {
+		n[v] = k
+	}
+	return n
 }
 
 func countBytes(bytes []byte) *map[byte]int {
@@ -250,6 +263,10 @@ func countBytes(bytes []byte) *map[byte]int {
 }
 
 func main() {
-	data, _ := os.ReadFile("./longerlonger.txt")
-	HuffmanEncode(data)
+	data, _ := os.ReadFile("./longRandom.txt")
+	numBytes, bitStringsToBytes, outBytes := HuffmanEncode(data)
+	fmt.Println(len(data))
+	fmt.Println(len(outBytes))
+	decompressed := DecompressText(numBytes, bitStringsToBytes, outBytes)
+	fmt.Println(len(string(decompressed)))
 }
