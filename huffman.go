@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const numThreads = 4
+const numRoutines = 4
 
 func HuffmanEncode(bytes []byte) (numBytes int, bitStringsToBytes map[string]byte, outBytes []byte) {
 	var byteToCountMap = countBytes(bytes)
@@ -209,7 +209,7 @@ func reverseMap(m map[byte]string) map[string]byte {
 
 func countBytes(bytes []byte) *map[byte]int {
 
-	chunkSize := int((len(bytes) + numThreads - 1) / numThreads)
+	chunkSize := int((len(bytes) + numRoutines - 1) / numRoutines)
 	var divided [][]byte
 	for i := 0; i < len(bytes); i += chunkSize {
 		end := i + chunkSize
